@@ -58,26 +58,44 @@ class BaseHandler(tornado.web.RequestHandler):
 class MainHandler(BaseHandler):
     @tornado.web.authenticated
     def get(self):
-        self.render("index.html", messages=MessageMixin.cache)
+        r = redis.Redis()
+        r.select(6)
+        messages = r.lrange('room:1',0, -1)
+        recent = []
+        index = 0
+        for m in messages:
+            tmp = m.rsplit('|')
+            recent.append({'id':index, 'from': tmp[0], 'body':tmp[1]})
+            index+=1
+        self.render("index.html", messages=recent)
 
 
 class MessageMixin(object):
     waiters = []
-    cache = []
-    cache_size = 200
 
     def wait_for_messages(self, callback, cursor=None):
         cls = MessageMixin
-        if cursor:
+        
+        r = redis.Redis()
+        r.select(6)
+
+        if(not cursor):
+          cursor = -1
+        
+        last_index = r.llen('room:1') - 1
+        if(cursor <= last_index):
+            messages = r.lrange('room:1',0,cursor)
+            recent = []
             index = 0
-            for i in xrange(len(cls.cache)):
-                index = len(cls.cache) - i - 1
-                if cls.cache[index]["id"] == cursor: break
-            recent = cls.cache[index + 1:]
+            for m in messages:
+                tmp = m.rsplit('|')
+                recent.append({'id':index, 'from': tmp[0], 'body':tmp[1]})
+                index+=1
             if recent:
                 callback(recent)
                 return
         cls.waiters.append(callback)
+
 
     def new_messages(self, messages):
         cls = MessageMixin
@@ -88,23 +106,22 @@ class MessageMixin(object):
             except:
                 logging.error("Error in waiter callback", exc_info=True)
         cls.waiters = []
-        r = redis.Redis()
-        r.select(6)
-        r.push('room:1',messages[0]['from'] + ' ' + messages[0]['body'])
-        cls.cache.extend(messages)
-        if len(cls.cache) > self.cache_size:
-            cls.cache = cls.cache[-self.cache_size:]
-
 
 class MessageNewHandler(BaseHandler, MessageMixin):
     @tornado.web.authenticated
     def post(self):
+
+        r = redis.Redis()
+        r.select(6)
+
+        r.push('room:1', self.current_user + '|' + self.get_argument('body'))
+        message_index = r.llen('room:1') - 1
         message = {
-            "id": str(uuid.uuid4()),
-            "from": self.current_user,
-            "body": self.get_argument("body"),
+          "id": str(message_index),
+          "from": self.current_user,
+          "body": self.get_argument("body"),
         }
-        message["html"] = self.render_string("message.html", message=message)
+        message["html"] = self.render_string("message.html", message = message)
         if self.get_argument("next", None):
             self.redirect(self.get_argument("next"))
         else:
