@@ -1,1 +1,1 @@
-<div class="message" id="m{{ message["id"] }}"><b>{{ escape(message["from"]) }}: </b>{{ escape(message["body"]) }}</div>
+<table class="message {% if message['from'] == current_user  %}personal{% end %}" id="m{{ message["id"] }}" ><tr><td class="date">{{ datetime.datetime.strftime(datetime.datetime.fromtimestamp(message["timestamp"]),'%H:%M' ) }}</td><td valign="top" class="nick">{{ escape(message["from"]) }}</td><td class="msg-text">{{ escape(message["body"]) }}</td></tr></table>

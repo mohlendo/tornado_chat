@@ -15,34 +15,33 @@
 $(document).ready(function() {
     if (!window.console) window.console = {};
     if (!window.console.log) window.console.log = function() {};
-
-    $("#messageform").live("submit", function() {
-	newMessage($(this));
-	return false;
+    $("#entry").keypress(function (e) {
+      if (e.keyCode != 13 /* Return */) {
+        return;
+      }
+      var msg = $("#entry").attr("value").replace("\n", "");
+      var nxt = $("#next").attr("value");
+      if (!util.isBlank(msg)) {
+        newMessage(msg, nxt);
+      }
+      $("#entry").attr("value", ""); // clear the entry field.
     });
-    $("#messageform").live("keypress", function(e) {
-	if (e.keyCode == 13) {
-	    newMessage($(this));
-	    return false;
-	}
-    });
-    $("#message").select();
+    //update the clock every second
+    setInterval(function () {
+      var now = new Date();
+      $("#currentTime").text(util.timeString(now));
+    }, 1000);
+    
+    scrollDown();
     updater.poll();
 });
 
-function newMessage(form) {
-    var message = form.formToDict();
-    var disabled = form.find("input[type=submit]");
-    disabled.disable();
-    $.postJSON("/a/message/new", message, function(response) {
-	updater.showMessage(response);
-	if (message.id) {
-	    form.parent().remove();
-	} else {
-	    form.find("input[type=text]").val("").select();
-	    disabled.enable();
-	}
-    });
+
+function newMessage(msg, nxt) {
+  var message = {message: msg, next: nxt}; 
+  $.postJSON("/a/message/new", message, function(response) {
+      updater.showMessage(response);
+  });
 }
 
 function getCookie(name) {
@@ -128,8 +127,47 @@ var updater = {
 	var existing = $("#m" + message.id);
 	if (existing.length > 0) return;
 	var node = $(message.html);
-	node.hide();
-	$("#inbox").append(node);
-	node.slideDown();
+	//node.hide();
+	$("#log").append(node);
+	//node.slideDown();
+  scrollDown();
     }
 };
+
+// utility functions
+
+util = {
+urlRE: /https?:\/\/([-\w\.]+)+(:\d+)?(\/([^\s]*(\?\S+)?)?)?/g, 
+
+        //  html sanitizer 
+        toStaticHTML: function(inputHtml) {
+          return inputHtml.replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
+        }, 
+
+zeroPad: function (digits, n) {
+           n = n.toString();
+           while (n.length < digits) 
+             n = '0' + n;
+           return n;
+         },
+
+timeString: function (date) {
+              var minutes = date.getMinutes().toString();
+              var hours = date.getHours().toString();
+              return this.zeroPad(2, hours) + ":" + this.zeroPad(2, minutes);
+            },
+
+isBlank: function(text) {
+           var blank = /^\s*$/;
+           return (text.match(blank) !== null);
+         }
+};
+
+function scrollDown () {
+  window.scrollBy(0, 100000000000000000);
+  $("#entry").focus();
+}
+
+

@@ -25,7 +25,7 @@ import os.path
 import uuid
 import redis
 import simplejson as json
-
+import time
 
 from tornado.options import define, options
 
@@ -107,8 +107,9 @@ class MessageNewHandler(BaseHandler, MessageMixin):
         message_index = r.llen('room:1')
         message = {
           'id': str(message_index),
+          'timestamp': time.time(),
           'from': self.current_user,
-          'body': self.get_argument("body"),
+          'body': self.get_argument("message"),
         }
         r.push('room:1', json.dumps(message))
         
@@ -138,10 +139,7 @@ class MessageUpdatesHandler(BaseHandler, MessageMixin):
 class AuthLoginHandler(BaseHandler):
     #@tornado.web.asynchronous
     def get(self):
-        self.write('<html><body><form action="/auth/login" method="post">'
-          'Name: <input type="text" name="name">'
-          '<input type="submit" value="Sign in">'
-          '</form></body></html>')
+        self.render("login.html")
     
     def post(self):
         self.set_secure_cookie("user",  self.get_argument("name"))

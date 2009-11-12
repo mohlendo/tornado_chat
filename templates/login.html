@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block body %}
+<div id="connect">
+  <form action="/auth/login" method="POST">
+    <fieldset> 
+      <p>
+      This is a chat room. The server-side is written in Python using Tornado as web server and redis as persistence layer.
+      The client is written in javascript. The source code is
+      <a href="http://github.com/mohlendo/tornado_chat">here</a>.
+      </p>
+
+      <label for="nick">Name</label>
+      <input id="nickInput" class="text"type="text" name="name" value=""/>
+      <input id="connectButton" class="button" type="submit" name="" value="Join"/>
+
+    </fieldset>
+  </form>
+</div>
+{% end %}
