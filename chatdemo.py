@@ -30,6 +30,8 @@ import time
 from tornado.options import define, options
 
 define("port", default=8001, help="run on the given port", type=int)
+rclient = redis.Redis()
+rclient.select(6)
 
 
 class Application(tornado.web.Application):
@@ -60,11 +62,8 @@ class BaseHandler(tornado.web.RequestHandler):
 class MainHandler(BaseHandler):
     @tornado.web.authenticated
     def get(self):
-        r = redis.Redis()
-        r.select(6)
-        messages = [json.loads(m) for m in r.lrange('room:1',0, -1)]
+        messages = [json.loads(m) for m in rclient.lrange('room:1',0, -1)]
         self.render("index.html", messages=messages)
-
 
 class MessageMixin(object):
     waiters = []
@@ -72,15 +71,12 @@ class MessageMixin(object):
     def wait_for_messages(self, callback, cursor=None):
         cls = MessageMixin
         
-        r = redis.Redis()
-        r.select(6)
-
         if(not cursor):
           cursor = -1
         
-        last_index = r.llen('room:1') - 1
+        last_index = rclient.llen('room:1') - 1
         if(cursor <= last_index):
-            messages = [json.loads(m) for m in r.lrange('room:1',0, cursor)]
+            messages = [json.loads(m) for m in rclient.lrange('room:1',0, cursor)]
             if messages:
                 callback(messages)
                 return
@@ -101,19 +97,16 @@ class MessageNewHandler(BaseHandler, MessageMixin):
     @tornado.web.authenticated
     def post(self):
 
-        r = redis.Redis()
-        r.select(6)
-
-        message_index = r.llen('room:1')
+        message_index = rclient.llen('room:1')
         message = {
           'id': str(message_index),
           'timestamp': time.time(),
           'from': self.current_user,
           'body': self.get_argument("message"),
         }
-        r.push('room:1', json.dumps(message))
+        rclient.push('room:1', json.dumps(message))
         
-        message["html"] = self.render_string("message.html", message = message)
+        message["html"] = self.render_string("message.html", message=message)
         if self.get_argument("next", None):
             self.redirect(self.get_argument("next"))
         else:
