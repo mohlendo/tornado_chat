@@ -24,6 +24,8 @@ import tornado.web
 import os.path
 import uuid
 import redis
+import simplejson as json
+
 
 from tornado.options import define, options
 
@@ -60,14 +62,8 @@ class MainHandler(BaseHandler):
     def get(self):
         r = redis.Redis()
         r.select(6)
-        messages = r.lrange('room:1',0, -1)
-        recent = []
-        index = 0
-        for m in messages:
-            tmp = m.rsplit('|')
-            recent.append({'id':index, 'from': tmp[0], 'body':tmp[1]})
-            index+=1
-        self.render("index.html", messages=recent)
+        messages = [json.loads(m) for m in r.lrange('room:1',0, -1)]
+        self.render("index.html", messages=messages)
 
 
 class MessageMixin(object):
@@ -84,15 +80,9 @@ class MessageMixin(object):
         
         last_index = r.llen('room:1') - 1
         if(cursor <= last_index):
-            messages = r.lrange('room:1',0,cursor)
-            recent = []
-            index = 0
-            for m in messages:
-                tmp = m.rsplit('|')
-                recent.append({'id':index, 'from': tmp[0], 'body':tmp[1]})
-                index+=1
-            if recent:
-                callback(recent)
+            messages = [json.loads(m) for m in r.lrange('room:1',0, cursor)]
+            if messages:
+                callback(messages)
                 return
         cls.waiters.append(callback)
 
@@ -114,13 +104,14 @@ class MessageNewHandler(BaseHandler, MessageMixin):
         r = redis.Redis()
         r.select(6)
 
-        r.push('room:1', self.current_user + '|' + self.get_argument('body'))
-        message_index = r.llen('room:1') - 1
+        message_index = r.llen('room:1')
         message = {
-          "id": str(message_index),
-          "from": self.current_user,
-          "body": self.get_argument("body"),
+          'id': str(message_index),
+          'from': self.current_user,
+          'body': self.get_argument("body"),
         }
+        r.push('room:1', json.dumps(message))
+        
         message["html"] = self.render_string("message.html", message = message)
         if self.get_argument("next", None):
             self.redirect(self.get_argument("next"))
