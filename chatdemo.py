@@ -30,8 +30,6 @@ import time
 from tornado.options import define, options
 
 define("port", default=8001, help="run on the given port", type=int)
-rclient = redis.Redis()
-rclient.select(6)
 
 
 class Application(tornado.web.Application):
@@ -62,7 +60,10 @@ class BaseHandler(tornado.web.RequestHandler):
 class MainHandler(BaseHandler):
     @tornado.web.authenticated
     def get(self):
+        rclient = redis.Redis()
+        rclient.select(6)
         messages = [json.loads(m) for m in rclient.lrange('room:1',0, -1)]
+        rclient.disconnect()
         self.render("index.html", messages=messages)
 
 class MessageMixin(object):
@@ -74,6 +75,8 @@ class MessageMixin(object):
         if(not cursor):
           cursor = -1
         
+        rclient = redis.Redis()
+        rclient.select(6)
         last_index = rclient.llen('room:1') - 1
         if(cursor <= last_index):
             messages = [json.loads(m) for m in rclient.lrange('room:1',0, cursor)]
@@ -81,7 +84,7 @@ class MessageMixin(object):
                 callback(messages)
                 return
         cls.waiters.append(callback)
-
+        rclient.disconnect()
 
     def new_messages(self, messages):
         cls = MessageMixin
@@ -96,7 +99,8 @@ class MessageMixin(object):
 class MessageNewHandler(BaseHandler, MessageMixin):
     @tornado.web.authenticated
     def post(self):
-
+        rclient = redis.Redis()
+        rclient.select(6)
         message_index = rclient.llen('room:1')
         message = {
           'id': str(message_index),
@@ -105,7 +109,7 @@ class MessageNewHandler(BaseHandler, MessageMixin):
           'body': self.get_argument("message"),
         }
         rclient.push('room:1', json.dumps(message))
-        
+        rclient.disconnect() 
         message["html"] = self.render_string("message.html", message=message)
         if self.get_argument("next", None):
             self.redirect(self.get_argument("next"))
